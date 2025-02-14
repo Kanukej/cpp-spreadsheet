@@ -7,6 +7,8 @@
 #include <string_view>
 #include <variant>
 #include <vector>
+#include <optional>
+#include <unordered_set>
 
 // Позиция ячейки. Индексация с нуля.
 struct Position {
@@ -26,6 +28,21 @@ struct Position {
     static const Position NONE;
 };
 
+struct PositionHash {
+    /*std::hash<std::string> hasher;
+
+    size_t operator()(const Position& pos) const {
+        return hasher(pos.ToString());
+    }
+    */
+    std::hash<int> hasher;
+
+    size_t operator()(const Position& pos) const {
+        //return hasher(pos.col * Position::MAX_ROWS + pos.row);
+        return hasher(pos.row * Position::MAX_COLS + pos.col);
+    }
+};
+
 struct Size {
     int rows = 0;
     int cols = 0;
@@ -39,7 +56,7 @@ public:
     enum class Category {
         Ref,    // ссылка на ячейку с некорректной позицией
         Value,  // ячейка не может быть трактована как число
-        Div0,  // в результате вычисления возникло деление на ноль
+        Arithmetic,  // в результате вычисления возникло деление на ноль
     };
 
     FormulaError(Category category);
@@ -76,6 +93,13 @@ public:
     using std::runtime_error::runtime_error;
 };
 
+// Исключение, выбрасываемое, если вставка строк/столбцов в таблицу приведёт к
+// ячейке с позицией больше максимально допустимой
+class TableTooBigException : public std::runtime_error {
+public:
+    using std::runtime_error::runtime_error;
+};
+
 class CellInterface {
 public:
     // Либо текст ячейки, либо значение формулы, либо сообщение об ошибке из
@@ -97,6 +121,11 @@ public:
     // формуле. Список отсортирован по возрастанию и не содержит повторяющихся
     // ячеек. В случае текстовой ячейки список пуст.
     virtual std::vector<Position> GetReferencedCells() const = 0;
+
+    virtual void AddReference(const Position& pos) = 0;
+    virtual void DelReference(const Position& pos) = 0;
+    virtual void Invalidate() = 0;
+
 };
 
 inline constexpr char FORMULA_SIGN = '=';

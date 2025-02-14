@@ -10,6 +10,8 @@
 #include <optional>
 #include <sstream>
 
+#include <iostream>
+
 namespace ASTImpl {
 
 enum ExprPrecedence {
@@ -72,7 +74,7 @@ public:
     virtual ~Expr() = default;
     virtual void Print(std::ostream& out) const = 0;
     virtual void DoPrintFormula(std::ostream& out, ExprPrecedence precedence) const = 0;
-    virtual double Evaluate(/*добавьте сюда нужные аргументы*/ args) const = 0;
+    virtual double Evaluate(SheetInterface& sheet) const = 0;
 
     // higher is tighter
     virtual ExprPrecedence GetPrecedence() const = 0;
@@ -142,8 +144,31 @@ public:
         }
     }
 
-    double Evaluate(/*добавьте нужные аргументы*/) const override {
-			// Скопируйте ваше решение из предыдущих уроков.
+// Реализуйте метод Evaluate(CacheInterface& cache) для бинарных операций.
+// При делении на 0 выбрасывайте ошибку вычисления FormulaError
+    double Evaluate(SheetInterface& sheet) const override {
+        double result;
+        double r = rhs_->Evaluate(sheet);
+        double l = lhs_->Evaluate(sheet);
+        switch (type_) {
+            case Type::Add:
+                result = l + r;
+                break;
+            case Type::Subtract:
+                result = l - r;
+                break;
+            case Type::Multiply:
+                result = l * r;
+                break;
+            case Type::Divide:
+                result = l / r;
+                //
+                break;
+        }
+        if (!std::isfinite(result)) {
+            throw FormulaError(FormulaError::Category::Arithmetic);
+        }
+        return result;
     }
 
 private:
@@ -180,8 +205,10 @@ public:
         return EP_UNARY;
     }
 
-    double Evaluate(/*добавьте нужные аргументы*/ args) const override {
-        // Скопируйте ваше решение из предыдущих уроков.
+// Реализуйте метод Evaluate() для унарных операций.
+    double Evaluate(SheetInterface& sheet) const override {
+        double result = operand_->Evaluate(sheet);
+        return type_ == Type::UnaryMinus ? -result : result;
     }
 
 private:
@@ -211,11 +238,45 @@ public:
         return EP_ATOM;
     }
 
-    double Evaluate(/*добавьте нужные аргументы*/ args) const override {
+    double Evaluate(SheetInterface& sheet) const override {
+        if (cell_ != nullptr) {
+            try {
+                const auto* cell = sheet.GetCell(*cell_);
+                if (cell == nullptr) {
+                    return 0.;
+                }
+                CellValueVisitor ans;
+                std::visit(ans, cell->GetValue());
+                return ans.result;
+            } catch (InvalidPositionException&) {
+                throw FormulaException("1234");;
+            }
+        }
         // реализуйте метод.
+        return 0.;
     }
 
 private:
+    struct CellValueVisitor {
+        double result;
+        void operator()(const std::string& val) {
+            if (val.empty()) {
+                result = 0.;
+                return;
+            }
+            std::istringstream in(val);
+            in >> result;
+            if (!in) {
+                throw FormulaError(FormulaError::Category::Value);
+            }            
+        }
+        void operator()(const double& val) {
+            result = val;
+        }
+        void operator()(const FormulaError& val) {
+            throw val;
+        }
+    };
     const Position* cell_;
 };
 
@@ -237,7 +298,8 @@ public:
         return EP_ATOM;
     }
 
-    double Evaluate(/*добавьте нужные аргументы*/ args) const override {
+// Для чисел метод возвращает значение числа.
+    double Evaluate(SheetInterface&) const override {
         return value_;
     }
 
@@ -280,6 +342,7 @@ public:
     void exitLiteral(FormulaParser::LiteralContext* ctx) override {
         double value = 0;
         auto valueStr = ctx->NUMBER()->getSymbol()->getText();
+        //std::cout << "lit"<<valueStr << std::endl;
         std::istringstream in(valueStr);
         in >> value;
         if (!in) {
@@ -292,8 +355,10 @@ public:
 
     void exitCell(FormulaParser::CellContext* ctx) override {
         auto value_str = ctx->CELL()->getSymbol()->getText();
+        //std::cout << "-" << value_str << std::endl;
         auto value = Position::FromString(value_str);
         if (!value.IsValid()) {
+            //std::cout << "inv" << std::endl;
             throw FormulaException("Invalid position: " + value_str);
         }
 
@@ -327,6 +392,7 @@ public:
     }
 
     void visitErrorNode(antlr4::tree::ErrorNode* node) override {
+        //std::cout << "error node" << std::endl;
         throw ParsingError("Error when parsing: " + node->getSymbol()->getText());
     }
 
@@ -341,6 +407,7 @@ public:
                      size_t /* line */, size_t /* charPositionInLine */, const std::string& msg,
                      std::exception_ptr /* e */
                      ) override {
+        //std::cout << "listener error" << std::endl;
         throw ParsingError("Error when lexing: " + msg);
     }
 };
@@ -374,7 +441,13 @@ FormulaAST ParseFormulaAST(std::istream& in) {
 
 FormulaAST ParseFormulaAST(const std::string& in_str) {
     std::istringstream in(in_str);
-    return ParseFormulaAST(in);
+    try {
+        return ParseFormulaAST(in);
+    } catch (antlr4::ParseCancellationException&) {
+        throw FormulaException("parsing error");
+    } catch (ParsingError&) {
+        throw FormulaException("parsing error");
+    }
 }
 
 void FormulaAST::PrintCells(std::ostream& out) const {
@@ -391,8 +464,8 @@ void FormulaAST::PrintFormula(std::ostream& out) const {
     root_expr_->PrintFormula(out, ASTImpl::EP_ATOM);
 }
 
-double FormulaAST::Execute(/*добавьте нужные аргументы*/ args) const {
-    return root_expr_->Evaluate(/*добавьте нужные аргументы*/ args);
+double FormulaAST::Execute(SheetInterface& sheet) const {
+    return root_expr_->Evaluate(sheet);
 }
 
 FormulaAST::FormulaAST(std::unique_ptr<ASTImpl::Expr> root_expr, std::forward_list<Position> cells)

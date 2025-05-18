@@ -39,9 +39,6 @@ public:
 private:
     std::unique_ptr<ASTImpl::Expr> root_expr_;
 
-    // physically stores cells so that they can be
-    // efficiently traversed without going through
-    // the whole AST
     std::forward_list<Position> cells_;
 };
 

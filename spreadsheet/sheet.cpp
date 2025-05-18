@@ -11,7 +11,6 @@
 using namespace std::literals;
 
 Sheet::Sheet() {
-    //
 }
 
 Sheet::~Sheet() {}

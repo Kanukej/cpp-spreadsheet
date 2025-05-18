@@ -12,7 +12,6 @@ using namespace std::literals;
 namespace {
 class Formula : public FormulaInterface {
 public:
-// Реализуйте следующие методы:
     explicit Formula(std::string expression) : ast_(ParseFormulaAST(expression)) {
         for (const Position& pos : ast_.GetCells()) {
             referenced_cells_.insert(pos);

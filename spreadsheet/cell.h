@@ -25,7 +25,6 @@ public:
     void Invalidate() override;
 
 private:
-//можете воспользоваться нашей подсказкой, но это необязательно.
     class Impl {
     public:
         Impl(const std::string& text);

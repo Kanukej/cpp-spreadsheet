@@ -6,7 +6,7 @@
 #include <optional>
 #include <sstream>
 
-// Реализуйте следующие методы
+
 
 Cell::Cell(std::string text, Position pos, SheetInterface& sheet) : pos_(pos), sheet_(sheet) {
     Clear();
@@ -14,7 +14,7 @@ Cell::Cell(std::string text, Position pos, SheetInterface& sheet) : pos_(pos), s
 }
 
 Cell::~Cell() {
-    //
+    
 }
 
 void Cell::ClearRefs() {
@@ -115,11 +115,9 @@ void Cell::DelReference(const Position& pos) {
 }
 
 Cell::Impl::Impl(const std::string& text) : raw_text_(text) {
-    //
 }
 
 Cell::EmptyImpl::EmptyImpl() : Cell::Impl("") {
-    //
 }
 
 CellInterface::Value Cell::EmptyImpl::GetValue() const {
@@ -139,7 +137,6 @@ bool Cell::EmptyImpl::Empty() const {
 }
 
 Cell::TextImpl::TextImpl(const std::string& text) : Cell::Impl(text) {
-    //
 }
 
 CellInterface::Value Cell::TextImpl::GetValue() const {
